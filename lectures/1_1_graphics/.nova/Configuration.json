@@ -1,0 +1,5 @@
+{
+  "editor.default_syntax" : "dart",
+  "flutter.device" : "macos",
+  "workspace.color" : 8
+}

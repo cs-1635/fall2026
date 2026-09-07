@@ -1,0 +1,9 @@
+.dart_tool/
+.packages
+.pub-cache/
+build/
+ios/Pods/
+.pub/
+*.lock
+.vscode/
+.idea/
