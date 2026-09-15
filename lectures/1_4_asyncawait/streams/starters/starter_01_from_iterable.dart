@@ -8,7 +8,14 @@ Prompt:
 
 Future<void> runExercise() async {
   // TODO: create the stream from [1, 2, 3]
-  // final s = ...
+   final s = Stream.fromIterable([1,2,3]);
+
+   await for (final x in s){
+     print('got $x');
+
+   }
+
+   print('done');
 
   // TODO: iterate with await for and print 'got <value>'
   // await for (final x in s) {
@@ -19,5 +26,5 @@ Future<void> runExercise() async {
 }
 
 void main(List<String> args) async {
-  runExample();
+  runExercise();
 }

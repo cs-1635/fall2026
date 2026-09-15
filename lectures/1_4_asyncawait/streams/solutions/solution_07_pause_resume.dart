@@ -9,7 +9,7 @@ Future<void> runExample() async {
     if (x == 2 && sub != null) {
       print('pause...');
       sub!.pause();
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 1000));
       print('resume');
       sub!.resume();
     }
