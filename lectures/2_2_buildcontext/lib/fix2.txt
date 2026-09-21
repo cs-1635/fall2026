@@ -1,0 +1,36 @@
+
+class MyApp extends StatelessWidget {
+  const MyApp({super. key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Login UI',
+      theme: ThemeData(primarySwatch: Colors.purple),
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: MyButton(),
+          ), //Material Button
+        ), //Center//Scaffold
+    );
+  }
+}
+
+
+class MyButton extends StatelessWidget {
+  const MyButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialButton(
+      color: Colors.white,
+      child: Text("Tap me!"),
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Snackbar")),
+        );
+      },
+    );//Material Button
+  }
+}
