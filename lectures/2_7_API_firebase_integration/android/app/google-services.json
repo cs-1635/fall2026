@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "204779751823",
+    "project_id": "pitt-cs1635-launchpad",
+    "storage_bucket": "pitt-cs1635-launchpad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:204779751823:android:8a6b2d6c60825e3005a3fa",
+        "android_client_info": {
+          "package_name": "com.example.api_integration"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8PbLEZ4YvSLfrNFfUGBjs1R5UI5ij_G4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
