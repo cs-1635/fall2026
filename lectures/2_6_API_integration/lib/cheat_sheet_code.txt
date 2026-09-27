@@ -1,0 +1,425 @@
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.0.5
+  http: ^1.2.2
+  intl: ^0.19.0
+
+
+
+
+
+class LaunchModel {
+  final String id;
+  final String name;
+  final DateTime net;           // LL2 'net'
+  final int rocketConfigId;     // rocket.configuration.id
+  final String rocketFullName;  // rocket.configuration.full_name (fallback to name)
+  final String? imageThumbUrl;  // image.thumbnail_url
+  final String? missionDescription; // mission.description
+
+  LaunchModel({
+    required this.id,
+    required this.name,
+    required this.net,
+    required this.rocketConfigId,
+    required this.rocketFullName,
+    this.imageThumbUrl,
+    this.missionDescription,
+  });
+
+  factory LaunchModel.fromJson(Map<String, dynamic> j) {
+    final rocket  = j['rocket'] as Map<String, dynamic>?;
+    final config  = rocket?['configuration'] as Map<String, dynamic>?;
+    final image   = j['image'] as Map<String, dynamic>?;
+    final mission = j['mission'] as Map<String, dynamic>?;
+
+    return LaunchModel(
+      id: j['id'] as String,
+      name: j['name'] as String,
+      net: DateTime.parse(j['net'] as String),
+      rocketConfigId: (config?['id'] as num?)?.toInt() ?? -1,
+      rocketFullName: (config?['full_name'] as String?) ??
+          (config?['name'] as String?) ?? 'Unknown',
+      imageThumbUrl: image?['thumbnail_url'] as String?,
+      missionDescription: mission?['description'] as String?,
+    );
+  }
+}
+
+
+
+
+class RocketModel {
+  final int id;
+  final String fullName;
+  final String? description;
+  final String? imageUrl;
+
+  RocketModel({
+    required this.id,
+    required this.fullName,
+    this.description,
+    this.imageUrl,
+  });
+
+  factory RocketModel.fromJson(Map<String, dynamic> j) {
+    final image = j['image'] as Map<String, dynamic>?;
+    return RocketModel(
+      id: (j['id'] as num).toInt(),
+      fullName: (j['full_name'] as String?) ?? (j['name'] as String?) ?? 'Unknown',
+      description: j['description'] as String?,
+      imageUrl: image?['image_url'] as String?,
+    );
+  }
+}
+
+
+
+
+
+
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../models/launchModel.dart';
+import '../models/rocketModel.dart';
+
+class LaunchLibraryApi {
+  final http.Client _client;
+  static const _base = 'https://ll.thespacedevs.com/2.3.0';
+
+  LaunchLibraryApi(this._client);
+
+  /// Upcoming launches from now onward, ordered by time.
+  Future<List<LaunchModel>> getUpcomingLaunches({int limit = 20}) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    final uri = Uri.parse('$_base/launches/?limit=$limit&net__gte=$now&ordering=net');
+    final r = await _client.get(uri);
+    if (r.statusCode != 200) {
+      throw Exception('Launches ${r.statusCode}: ${r.body}');
+    }
+    final root = jsonDecode(r.body) as Map<String, dynamic>;
+    final results = (root['results'] as List).cast<Map<String, dynamic>>();
+    return results.map(LaunchModel.fromJson).toList();
+  }
+
+  /// Details for the rocket configuration shown on a launch.
+  Future<RocketModel> getLauncherConfiguration(int id) async {
+    final uri = Uri.parse('$_base/launcher_configurations/$id/');
+    final r = await _client.get(uri);
+    if (r.statusCode != 200) {
+      throw Exception('LauncherConfig ${r.statusCode}: ${r.body}');
+    }
+    return RocketModel.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+  }
+}
+
+
+
+
+
+import '../models/launchModel.dart';
+import '../models/rocketModel.dart';
+import '../services/LaunchLibraryApi.dart';
+
+class LaunchRepository {
+  final LaunchLibraryApi api;
+  LaunchRepository(this.api);
+
+  Future<List<LaunchModel>> upcomingLaunches({int limit = 20}) =>
+      api.getUpcomingLaunches(limit: limit);
+
+  Future<RocketModel> rocketFor(int rocketConfigId) =>
+      api.getLauncherConfiguration(rocketConfigId);
+}
+
+
+
+
+
+
+
+import 'package:flutter/foundation.dart';
+import '../models/launchModel.dart';
+import '../repositories/launchRepository.dart';
+
+class LaunchListVM extends ChangeNotifier {
+  final LaunchRepository _repo;
+  LaunchListVM(this._repo);
+
+  var _loading = false;
+  bool get loading => _loading;
+
+  String? _error;
+  String? get error => _error;
+
+  List<LaunchModel> _items = [];
+  List<LaunchModel> get items => _items;
+
+  Future<void> load() async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _items = await _repo.upcomingLaunches();
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _loading = false; notifyListeners();
+    }
+  }
+}
+
+
+
+
+
+
+import 'package:flutter/foundation.dart';
+import '../models/launchModel.dart';
+import '../models/rocketModel.dart';        // Map this to launcher_config response
+import '../repositories/launchRepository.dart';
+
+class LaunchDetailVM extends ChangeNotifier {
+  final LaunchRepository _repo;
+  final LaunchModel launchModel;
+  LaunchDetailVM(this._repo, this.launchModel);
+
+  RocketModel? _rocket;
+  RocketModel? get rocket => _rocket;
+
+  bool _loading = false;
+  bool get loading => _loading;
+
+  String? _error;
+  String? get error => _error;
+
+  /// Fetch the rocket configuration for this launch.
+  /// Set [force] true to re-fetch even if already loaded.
+  Future<void> loadRocket({bool force = false}) async {
+    if (!force && _rocket != null) return;
+
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // Launch Library 2: use launcher_configurations/{id}/
+      _rocket = await _repo.rocketFor(launchModel.rocketConfigId);
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+}
+
+
+
+
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+
+import 'services/LaunchLibraryApi.dart';
+import 'repositories/launchRepository.dart';
+import 'viewModels/launchListVM.dart';
+import 'views/launchListView.dart';
+
+void main() => runApp(const LaunchPadApp());
+
+class LaunchPadApp extends StatelessWidget {
+  const LaunchPadApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        Provider<http.Client>(create: (_) => http.Client()),
+        Provider<LaunchLibraryApi>(create: (localContext) => LaunchLibraryApi(localContext.read<http.Client>())),
+        ProxyProvider<LaunchLibraryApi, LaunchRepository>(update: (localContext2, api, __) => LaunchRepository(api),),
+        ChangeNotifierProvider<LaunchListVM>(create: (localContext3) => LaunchListVM(localContext3.read<LaunchRepository>()),),
+      ],
+      child: MaterialApp(
+        title: 'LaunchPad',
+        theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
+        home: const LaunchListView(),
+      ),
+    );
+  }
+}
+
+
+
+
+
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../models/launchModel.dart';
+
+class LaunchTileWidget extends StatelessWidget {
+  final LaunchModel launchModel;
+  final VoidCallback onTap;
+
+  const LaunchTileWidget({
+    super.key,
+    required this.launchModel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final local = launchModel.net.toLocal();
+    final dateStr = DateFormat.yMMMEd().add_jm().format(local);
+
+    return ListTile(
+      leading: launchModel.imageThumbUrl != null
+          ? CircleAvatar(backgroundImage: NetworkImage(launchModel.imageThumbUrl!))
+          : const CircleAvatar(child: Icon(Icons.rocket_launch)),
+      title: Text(
+        launchModel.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${launchModel.rocketFullName} • $dateStr',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+}
+
+
+
+
+
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../viewModels/launchListVM.dart';
+import '../repositories/launchRepository.dart';
+import '../viewModels/launchDetailVM.dart';
+import 'launchDetailView.dart';
+import '../widgets/launchTitleWidget.dart';
+
+class LaunchListView extends StatefulWidget { const LaunchListView({super.key});
+@override State<LaunchListView> createState() => _LaunchListViewState(); }
+
+class _LaunchListViewState extends State<LaunchListView> {
+  @override void initState() {
+    super.initState();
+    Future.microtask(() => context.read<LaunchListVM>().load());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<LaunchListVM>();
+
+    Widget body;
+    if (vm.loading) body = const Center(child: CircularProgressIndicator());
+    else if (vm.error != null) body = Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Error: ${vm.error}'),
+          const SizedBox(height: 8),
+          FilledButton(onPressed: vm.load, child: const Text('Retry')),
+        ]));
+    else body = RefreshIndicator(
+        onRefresh: vm.load,
+        child: ListView.separated(
+          itemCount: vm.items.length,
+          separatorBuilder: (_, __) => const Divider(height: 0),
+          itemBuilder: (_, i) => LaunchTileWidget(
+            launchModel: vm.items[i],
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ChangeNotifierProvider(
+                  create: (_) => LaunchDetailVM(
+                      context.read<LaunchRepository>(), vm.items[i])..loadRocket(),
+                  child: const LaunchDetailView(),
+                ),
+              ));
+            },
+          ),
+        ),
+      );
+
+    return Scaffold(appBar: AppBar(title: const Text('Upcoming Launches')), body: body);
+  }
+}
+
+
+
+
+
+
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../viewModels/launchDetailVM.dart';
+
+class LaunchDetailView extends StatelessWidget {
+  const LaunchDetailView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<LaunchDetailVM>();
+    final launch = vm.launchModel;
+
+    final local = launch.net.toLocal();
+    final dateStr = DateFormat.yMMMEd().add_jm().format(local);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(launch.name, overflow: TextOverflow.ellipsis)),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (vm.loading) const LinearProgressIndicator(),
+          Text('Launch Details', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(launch.missionDescription ?? 'No details provided.'),
+          const SizedBox(height: 16),
+          Text('Scheduled (local): $dateStr'),
+          const SizedBox(height: 24),
+          Text('Rocket', style: Theme.of(context).textTheme.titleLarge),
+
+          if (vm.error != null)
+            Text(
+              'Failed: ${vm.error}',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+
+          if (vm.rocket != null) ...[
+            Text(vm.rocket!.fullName, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (vm.rocket!.description != null) Text(vm.rocket!.description!),
+            const SizedBox(height: 12),
+            if (vm.rocket!.imageUrl != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(
+                  vm.rocket!.imageUrl!,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+
+
+
+
+
