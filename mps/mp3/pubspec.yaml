@@ -1,0 +1,21 @@
+name: live_positions_with_prices
+description: Positions list (symbol + shares) with live last price via Finnhub WS. Local storage only.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.0.5
+  web_socket_channel: ^2.4.0
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
