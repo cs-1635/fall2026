@@ -1,0 +1,13 @@
+Flutter Tests
+
+To run unit tests:
+flutter test test/path/name_of_test.dart
+
+To run the widget tests in the simulator:
+flutter run test/widget/home_test.dart
+
+To run just the tests:
+flutter test test/widget/home_test.dart
+
+To run integration tests:
+flutter drive --driver=test/integration_test/driver.dart --target=test/integration_test/app_test.dart
